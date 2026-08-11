@@ -60,7 +60,6 @@
 
     .sidebar h2 { margin: 0; font-size: 1.4em; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 12px; }
 
-    /* Main MQTT Badge */
     .status-badge {
       display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.25);
       padding: 10px 14px; border-radius: 8px; font-size: 0.88em; font-weight: 600;
@@ -72,7 +71,6 @@
     }
     .status-dot.connected { background: var(--success); box-shadow: 0 0 8px var(--success); }
 
-    /* Room-by-Room Diagnostic Indicators Panel in Sidebar */
     .sidebar-diag-box {
       background: rgba(0, 0, 0, 0.2);
       border: 1px solid rgba(255, 255, 255, 0.1);
@@ -193,8 +191,7 @@
   </style>
 </head>
 <body>
-
-  <!-- Login Overlay Modal -->
+  
   <div id="login-overlay">
     <div class="login-card">
       <h2>MQTT Login</h2>
@@ -210,13 +207,11 @@
     <div class="sidebar">
       <h2>Nurse Call Dashboard</h2>
       
-      <!-- Primary Status Badge -->
       <div class="status-badge">
         <div id="status-dot" class="status-dot"></div>
         <span id="connection-status-text">Cloud MQTT: Disconnected</span>
       </div>
 
-      <!-- Room-by-Room Diagnostic Indicator Panel -->
       <div class="sidebar-diag-box">
         <div class="sidebar-diag-item">
           <span>Room 1</span>
@@ -358,7 +353,6 @@
       document.querySelector('.login-btn').innerText = "Connect & Login";
     }
 
-    // Watchdog check for node offline status (No transmission for 15 seconds)
     setInterval(() => {
       let now = Date.now();
       let needsRender = false;
@@ -485,7 +479,6 @@
         let r = roomData[i];
         let roomNum = i + 1;
 
-        // Update individual sidebar indicator light and text
         let dotEl = document.getElementById(`r${roomNum}-dot`);
         let txtEl = document.getElementById(`r${roomNum}-txt`);
         if (r.online) {
