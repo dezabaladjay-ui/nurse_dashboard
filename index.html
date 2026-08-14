@@ -131,6 +131,9 @@
       border-bottom: 2px solid #edf2f7;
       margin-bottom: 20px;
       padding-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     .section-title { font-size: 1.3em; color: #2d3748; margin: 0; font-weight: 700; }
@@ -145,12 +148,22 @@
     .card.blue { border-left: 8px solid var(--danger-dark); background: #fff5f5; }
     .card.assist { border-left: 8px solid var(--warning); background: #fffaf0; }
     .card.both { border-left: 8px solid var(--danger-dark); background: #fff5f5; }
+    .card.offline { border-left: 8px solid #94a3b8; background: #f8fafc; opacity: 0.85; }
 
     .room-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 2px solid #edf2f7; padding-bottom: 8px; }
     h3 { margin: 0; color: #2d3748; font-size: 1.1em; }
 
+    .room-header-controls { display: flex; align-items: center; gap: 8px; }
+
     .standby-text { font-size: 0.75em; font-weight: bold; color: #718096; background: #edf2f7; padding: 4px 8px; border-radius: 4px; }
     .standby-text.active { color: white; background: var(--success); }
+    .standby-text.offline-badge { color: white; background: #64748b; }
+
+    .btn-delete {
+      background: transparent; border: none; cursor: pointer; font-size: 1.1em;
+      color: #a0aec0; padding: 2px 6px; border-radius: 4px; transition: all 0.2s;
+    }
+    .btn-delete:hover { background: #fee2e2; color: #dc2626; }
 
     .action-row { display: flex; justify-content: space-between; gap: 10px; margin: 15px 0; }
     .ind {
@@ -215,9 +228,9 @@
         <span id="connection-status-text">Cloud MQTT: Disconnected</span>
       </div>
 
-      <!-- Dynamic Room-by-Room Diagnostic Indicator Panel -->
+      <!-- Dynamic Room Diagnostic Panel -->
       <div class="sidebar-diag-box" id="sidebar-diag-container">
-        <!-- Dynamically populated room diagnostic list -->
+        <span style="color: #94a3b8; text-align: center;">Awaiting nodes...</span>
       </div>
 
       <div id="live-clock">Loading clock...</div>
@@ -231,17 +244,21 @@
     </div>
 
     <div class="main-content">
+      <!-- Live Monitor Section -->
       <div id="section-monitor" class="content-section active-section">
-        
         <div class="section-header-area">
-          <div class="section-title">Live Room Monitor</div>
+          <div class="section-title">Live Room Monitor (Auto-Discovered Nodes)</div>
         </div>
-
-        <div class="grid" id="dashboard-grid"></div>
+        <div class="grid" id="dashboard-grid">
+          <p style="color: #a0aec0; text-align: center;">No active room nodes detected yet.</p>
+        </div>
       </div>
 
+      <!-- History Section -->
       <div id="section-history" class="content-section">
-        <div class="section-title">Event & Queuing Log</div>
+        <div class="section-header-area">
+          <div class="section-title">Event & Queuing Log</div>
+        </div>
         <table class="history-table">
           <thead>
             <tr>
@@ -265,8 +282,13 @@
     let lastBeepTime = 0;
     let historyLogs = [];
 
-    // Dynamic map replacing the old hardcoded array
-    let roomsMap = {};
+    // Pre-populate default rooms 1 through 4 immediately on startup
+    let roomsMap = {
+      1: { cbActive: false, cbStart: 0, cbElapsed: 0, astActive: false, astStart: 0, astElapsed: 0, wifi: false, rssi: 0, uptime: 0, online: false, lastSeen: 0 },
+      2: { cbActive: false, cbStart: 0, cbElapsed: 0, astActive: false, astStart: 0, astElapsed: 0, wifi: false, rssi: 0, uptime: 0, online: false, lastSeen: 0 },
+      3: { cbActive: false, cbStart: 0, cbElapsed: 0, astActive: false, astStart: 0, astElapsed: 0, wifi: false, rssi: 0, uptime: 0, online: false, lastSeen: 0 },
+      4: { cbActive: false, cbStart: 0, cbElapsed: 0, astActive: false, astStart: 0, astElapsed: 0, wifi: false, rssi: 0, uptime: 0, online: false, lastSeen: 0 }
+    };
 
     function initMqttLogin() {
       let username = document.getElementById('mqtt-user').value.trim();
@@ -311,9 +333,12 @@
         let roomNum = parseInt(parts[2]);
         
         if (!isNaN(roomNum)) {
-          // Dynamically register room if it doesn't exist yet
           if (!roomsMap[roomNum]) {
-            roomsMap[roomNum] = { cbActive: false, cbStart: 0, cbElapsed: 0, astActive: false, astStart: 0, astElapsed: 0, wifi: false, rssi: 0, uptime: 0, online: false, lastSeen: 0 };
+            roomsMap[roomNum] = { 
+              cbActive: false, cbStart: 0, cbElapsed: 0, 
+              astActive: false, astStart: 0, astElapsed: 0, 
+              wifi: false, rssi: 0, uptime: 0, online: false, lastSeen: 0 
+            };
           }
 
           let r = roomsMap[roomNum];
@@ -341,7 +366,6 @@
       document.querySelector('.login-btn').innerText = "Connect & Login";
     }
 
-    // Watchdog check for node offline status (No transmission for 15 seconds)
     setInterval(() => {
       let now = Date.now();
       let needsRender = false;
@@ -358,18 +382,18 @@
 
     function processCommand(roomNum, cmdStr) {
       let r = roomsMap[roomNum];
-      let now = Date.now();
+      if (!r) return;
       if (cmdStr.indexOf("E1") !== -1) {
         if (!r.cbActive) {
           r.cbActive = true;
-          r.cbStart = now;
+          r.cbStart = Date.now();
           r.cbElapsed = 0;
           addLog(roomNum, 'Code Blue', 'Triggered');
         }
       } else if (cmdStr.indexOf("A1") !== -1) {
         if (!r.astActive) {
           r.astActive = true;
-          r.astStart = now;
+          r.astStart = Date.now();
           r.astElapsed = 0;
           addLog(roomNum, 'Assistance', 'Triggered');
         }
@@ -380,6 +404,15 @@
         r.cbActive = false; r.astActive = false;
       }
       renderDashboard();
+    }
+
+    function deleteRoom(roomNum) {
+      if (confirm("Are you sure you want to remove Room " + roomNum + " from the dashboard?")) {
+        if (roomsMap[roomNum]) {
+          delete roomsMap[roomNum];
+          renderDashboard();
+        }
+      }
     }
 
     function addLog(roomNum, eventType, status) {
@@ -434,7 +467,11 @@
     function switchTab(sectionName, evt) {
       document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.content-section').forEach(el => el.classList.remove('active-section'));
-      document.getElementById(sectionName === 'monitor' ? 'section-monitor' : 'section-history').classList.add('active-section');
+      
+      let targetId = 'section-monitor';
+      if (sectionName === 'history') targetId = 'section-history';
+
+      document.getElementById(targetId).classList.add('active-section');
       evt.currentTarget.classList.add('active');
     }
 
@@ -466,25 +503,26 @@
       let hasCodeBlue = false;
       let hasAssist = false;
 
-      // Sort room numbers sequentially for clean rendering order
-      let sortedRooms = Object.keys(roomsMap).sort((a, b) => parseInt(a) - parseInt(b));
+      let roomKeys = Object.keys(roomsMap).sort((a, b) => parseInt(a) - parseInt(b));
 
-      if (sortedRooms.length === 0) {
-        document.getElementById('dashboard-grid').innerHTML = `<div style="text-align: center; color: #a0aec0; padding: 40px;">Listening for active room nodes...</div>`;
-        document.getElementById('sidebar-diag-container').innerHTML = `<div style="text-align: center; color: #94a3b8; font-size: 0.9em;">No rooms detected</div>`;
+      if (roomKeys.length === 0) {
+        document.getElementById('sidebar-diag-container').innerHTML = `<span style="color: #94a3b8; text-align: center; font-size: 0.9em;">No active rooms.</span>`;
+        document.getElementById('dashboard-grid').innerHTML = `<p style="color: #a0aec0; text-align: center;">All rooms have been removed.</p>`;
         return;
       }
 
-      sortedRooms.forEach(roomNum => {
+      roomKeys.forEach(roomNum => {
         let r = roomsMap[roomNum];
 
-        // Build Sidebar Diagnostic items dynamically
         diagHTML += `
           <div class="sidebar-diag-item">
             <span>Room ${roomNum}</span>
-            <div class="sidebar-diag-val">
-              <div class="net-dot ${r.online ? 'wifi-ok' : ''}"></div>
-              <span>${r.online ? 'Online' : 'Offline'}</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="sidebar-diag-val">
+                <div class="net-dot ${r.online ? 'wifi-ok' : ''}"></div>
+                <span>${r.online ? 'Online' : 'Offline'}</span>
+              </div>
+              <button class="btn-delete" style="font-size: 0.9em; padding: 0 4px;" onclick="deleteRoom(${roomNum})" title="Remove Node">🗑️</button>
             </div>
           </div>
         `;
@@ -496,26 +534,31 @@
         let emgText = "CODE BLUE";
         let astText = "ASSISTANCE";
 
-        if (r.cbActive) hasCodeBlue = true;
-        if (r.astActive) hasAssist = true;
+        if (!r.online) {
+          cardCls = "offline";
+          stbCls = "offline-badge";
+        } else {
+          if (r.cbActive) hasCodeBlue = true;
+          if (r.astActive) hasAssist = true;
 
-        if (r.cbActive && r.astActive) {
-          cardCls = "both"; stbCls = ""; cbStateClass = "cb-active"; astStateClass = "ast-active";
-          emgText += `<span class="timer">(${formatTime(r.cbElapsed)})</span>`;
-          astText += `<span class="timer">(${formatTime(r.astElapsed)})</span>`;
-        } else if (r.cbActive) {
-          cardCls = "blue"; stbCls = ""; cbStateClass = "cb-active";
-          emgText += `<span class="timer">(${formatTime(r.cbElapsed)})</span>`;
-        } else if (r.astActive) {
-          cardCls = "assist"; stbCls = ""; astStateClass = "ast-active";
-          astText += `<span class="timer">(${formatTime(r.astElapsed)})</span>`;
+          if (r.cbActive && r.astActive) {
+            cardCls = "both"; stbCls = ""; cbStateClass = "cb-active"; astStateClass = "ast-active";
+            emgText += `<span class="timer">(${formatTime(r.cbElapsed)})</span>`;
+            astText += `<span class="timer">(${formatTime(r.astElapsed)})</span>`;
+          } else if (r.cbActive) {
+            cardCls = "blue"; stbCls = ""; cbStateClass = "cb-active";
+            emgText += `<span class="timer">(${formatTime(r.cbElapsed)})</span>`;
+          } else if (r.astActive) {
+            cardCls = "assist"; stbCls = ""; astStateClass = "ast-active";
+            astText += `<span class="timer">(${formatTime(r.astElapsed)})</span>`;
+          }
         }
 
         let telemetryHTML = `
           <div class="telemetry-bar">
             <div class="net-status">
               <div class="net-dot ${r.wifi ? 'wifi-ok' : ''}"></div>
-              <span>WiFi: ${r.online ? (r.wifi ? 'Connected' : 'Dropped') : '--'}</span>
+              <span>WiFi: ${r.online ? (r.wifi ? 'Connected' : 'Dropped') : 'Offline'}</span>
             </div>
             <span><b>RSSI:</b> ${r.online ? r.rssi + ' dBm' : '--'}</span>
             <span><b>Uptime:</b> ${r.online ? formatUptime(r.uptime) : '--'}</span>
@@ -527,7 +570,10 @@
             <div>
               <div class="room-header">
                 <h3>ROOM ${roomNum}</h3>
-                <div class="standby-text ${stbCls}">STANDBY</div>
+                <div class="room-header-controls">
+                  <div class="standby-text ${stbCls}">${r.online ? 'STANDBY' : 'OFFLINE'}</div>
+                  <button class="btn-delete" onclick="deleteRoom(${roomNum})" title="Remove Room Node">🗑️</button>
+                </div>
               </div>
               <div class="action-row">
                 <span class="ind ${cbStateClass}">${emgText}</span>
